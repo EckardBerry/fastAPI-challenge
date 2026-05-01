@@ -1,21 +1,38 @@
 from typing import Optional, Union
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from src.models.enums import Status
+from src.models.card import Card
 
 class InvoiceRequest(BaseModel):
     model_config = ConfigDict(
-        coerce_numbers_to_str=True, alias_generator=to_camel,  populate_by_name=True
+        coerce_numbers_to_str=True, alias_generator=to_camel, populate_by_name=True
     )
     job_description: str
     customer_id: int
     amount: Union[str, float]
-    
+    card: Optional[Card] = Field(
+        default=None,
+        description="Optional. If omitted, the invoice stays PENDING.",
+    )
+
     @field_validator("amount", mode="before")
-    def round_amount(cls, v):
-        return round(v, 2)
+    @classmethod
+    def round_amount(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("amount must be a number")
+        if isinstance(value, str):
+            try:
+                value = float(value.strip())
+            except (TypeError, ValueError):
+                raise ValueError("amount must be a valid number")
+        elif isinstance(value, (int, float)):
+            value = float(value)
+        else:
+            raise ValueError("amount must be a number")
+        return round(value, 2)
 
     @property
     def formatted_price(self):

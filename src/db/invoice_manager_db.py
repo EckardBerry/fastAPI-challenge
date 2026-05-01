@@ -42,6 +42,11 @@ def db_health_check(db=None):
         return (502, {"status": "DOWN"})
 
 
+@with_db_session
+def get_customer_by_id(customer_id: int, db=None):
+    return db.query(CustomerDB).filter(CustomerDB.customer_id == customer_id).first()
+
+
 @with_db_session 
 def get_joined_invoice_customer_by_id(invoice_id: str, db=None):
     """

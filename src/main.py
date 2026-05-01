@@ -1,19 +1,17 @@
-from typing import Optional
 from uuid import UUID
-from fastapi import FastAPI, Path, Query, Response
+from fastapi import FastAPI, Path, Query, Response, HTTPException
 
-from src.models.enums import Status
-from src.models.card import Card
-from src.models.invoice import InvoiceRequest
+from src.models.invoice import InvoiceRequest, InvoiceResponse
 from src.config.settings import Settings
 from src.services.invoice_service import InvoicingService
 from src.services.health_check_service import HealthCheckService
-from src.models.invoice import InvoiceResponse, InvoiceRequest
-from src.db.invoice_manager_db import create_invoice_in_db, get_joined_invoice_customer_by_id
+from src.db.invoice_manager_db import (
+    create_invoice_in_db,
+    get_customer_by_id,
+    get_joined_invoice_customer_by_id,
+)
 from src.services.fake_pay_service import FakePay
 import uuid
-from fastapi import FastAPI, HTTPException
-from src.models.invoice import InvoiceResponse, InvoiceRequest
 
 
 app=FastAPI()
@@ -39,6 +37,13 @@ async def get_invoice(response: Response, invoice_id:UUID = Path(...)):
 @app.post("/invoice_create/", response_model=InvoiceResponse, status_code=201)
 async def create_new_invoice(invoice_data: InvoiceRequest):
     try:
+        customer = get_customer_by_id(invoice_data.customer_id)
+        if customer is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Customer with id {invoice_data.customer_id} not found",
+            )
+
         # Generate the ID first to sync with FakePay Transaction ID
         invoice_id = str(uuid.uuid4())
         invoice_status = "PENDING"
@@ -88,5 +93,7 @@ async def create_new_invoice(invoice_data: InvoiceRequest):
             "invoiceStatus": invoice_db.invoice_status
         }
 
+    except HTTPException:
+        raise
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error))
