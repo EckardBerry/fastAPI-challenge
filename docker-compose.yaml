@@ -1,0 +1,42 @@
+# MySQL 8 + FastAPI invoice app (matches README / SQLAlchemy mysql+mysqlconnector URL).
+#
+# FakePay runs on the host by default (see fake_pay.py). The API container reaches it via
+# host.docker.internal:9000. Start FakePay in another terminal: python fake_pay.py
+#
+# Linux (Docker Engine): extra_hosts provides host.docker.internal.
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: invoice_management
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./up_script.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pexample"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DB_USER: root
+      DB_PASSWORD: example
+      DB_URL: mysql:3306/invoice_management
+      FAKEPAY_URL: http://host.docker.internal:9000/fakepay
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
