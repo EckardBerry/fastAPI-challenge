@@ -74,3 +74,14 @@ def create_invoice_in_db(invoice_data, invoice_id, status, db=None):
     db.commit()
     db.refresh(new_invoice)
     return new_invoice
+
+
+@with_db_session
+def update_invoice_status(invoice_id: str, status: str, db=None):
+    invoice = db.query(InvoiceDB).filter(InvoiceDB.id == invoice_id).first()
+    if invoice is None:
+        return False
+    invoice.invoice_status = status
+    db.commit()
+    db.refresh(invoice)
+    return True
