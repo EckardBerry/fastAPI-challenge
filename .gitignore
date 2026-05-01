@@ -1,5 +1,6 @@
 # Byte-compiled / optimized
 __pycache__/
+src/services/__pycache__/fake_pay_service.cpython-312.pyc
 *.py[cod]
 *$py.class
 *.so
