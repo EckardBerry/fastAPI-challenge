@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
@@ -29,10 +29,13 @@ class InvoiceRequest(BaseModel):
     job_description: str
     customer_id: int
     amount: Union[str, float]
-    card: Optional[Card] = Field(
-        default=None,
-        description="Optional. If omitted, the invoice stays PENDING.",
-    )
+    card: Annotated[
+        Optional[Card],
+        Field(
+            default=None,
+            description="Optional. If omitted, no payment is attempted and status stays PENDING.",
+        ),
+    ]
 
     @field_validator("amount", mode="before")
     @classmethod
@@ -41,14 +44,14 @@ class InvoiceRequest(BaseModel):
             raise ValueError("amount must be a number")
         if isinstance(value, str):
             try:
-                value = float(value.strip())
+                coerced = float(value.strip())
             except (TypeError, ValueError):
                 raise ValueError("amount must be a valid number")
-        elif isinstance(value, (int, float)):
-            value = float(value)
-        else:
+            return round(coerced, 2)
+        try:
+            return round(float(value), 2)
+        except (TypeError, ValueError):
             raise ValueError("amount must be a number")
-        return round(value, 2)
 
     @property
     def formatted_price(self):

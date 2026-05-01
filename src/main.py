@@ -10,6 +10,7 @@ from src.db.invoice_manager_db import (
     get_customer_by_id,
     get_joined_invoice_customer_by_id,
 )
+from src.models.model_mappers import map_db_to_invoice_response
 from src.services.fake_pay_service import FakePay
 import uuid
 
@@ -75,17 +76,10 @@ async def create_new_invoice(invoice_data: InvoiceRequest):
         db_data = get_joined_invoice_customer_by_id(invoice_id=invoice_id)
         invoice_db, customer_db = db_data
 
-        # Return json object
-        return {
-            "id": invoice_db.id,
-            "jobDescription": invoice_db.job_description,
-            "customerId": invoice_db.customer_id,
-            "amount": float(invoice_db.amount),
-            "card": masked_card,
-            "customerName": customer_db.customer_name,
-            "customerEmail": customer_db.customer_email,
-            "invoiceStatus": invoice_db.invoice_status
-        }
+        invoice_response = map_db_to_invoice_response(invoice_db, customer_db)
+        if masked_card is not None:
+            invoice_response = invoice_response.model_copy(update={"card": masked_card})
+        return invoice_response
 
     except HTTPException:
         raise
