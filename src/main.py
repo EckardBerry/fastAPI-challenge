@@ -1,7 +1,7 @@
 from uuid import UUID
 from fastapi import FastAPI, Path, Query, Response, HTTPException
 
-from src.models.invoice import InvoiceRequest, InvoiceResponse
+from src.models.invoice import InvoiceRequest, InvoiceResponse, MaskedCard
 from src.config.settings import Settings
 from src.services.invoice_service import InvoicingService
 from src.services.health_check_service import HealthCheckService
@@ -60,14 +60,8 @@ async def create_new_invoice(invoice_data: InvoiceRequest):
 
             if payment_successful:
                 invoice_status = "PAID"
-                
                 # Mask the card for the response
-                num = invoice_data.card.number
-                masked_card = {
-                    "number": f"{num[:6]}********{num[-4:]}",
-                    "expiry": invoice_data.card.expiry,
-                    "name": invoice_data.card.name
-                }
+                masked_card = MaskedCard.from_card(invoice_data.card)
             else:
                 raise HTTPException(status_code=402, detail="FakePay failed")
 
@@ -96,4 +90,7 @@ async def create_new_invoice(invoice_data: InvoiceRequest):
     except HTTPException:
         raise
     except Exception as error:
+        print('*************************')
+        print("ERROR:", repr(error))
+        print('*************************')
         raise HTTPException(status_code=400, detail=str(error))
