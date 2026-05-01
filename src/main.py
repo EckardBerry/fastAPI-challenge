@@ -52,7 +52,7 @@ async def create_new_invoice(invoice_data: InvoiceRequest):
         # if Card is provided, take care of payment
         if invoice_data.card:
             # Call FakePay asynchronously
-            payment_successful = await fake_pay.authorize(
+            payment_successful = await fake_pay.authorize_payment(
                 amount=invoice_data.amount,
                 transaction_id=invoice_id,
                 card=invoice_data.card
