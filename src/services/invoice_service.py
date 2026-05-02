@@ -27,6 +27,7 @@ class InvoicingService():
     async def authorize_payment(
         self, amount, transaction_id: str, card: Card
     ) -> bool:
+        """Authorize a payment wtih the FakePay service."""
         return await self.fake_pay.authorize_payment(
             amount=amount,
             transaction_id=transaction_id,

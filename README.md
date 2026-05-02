@@ -248,3 +248,37 @@ Think about how you could handle a large amount of data - perhaps we only want t
 #### PLEASE Comment your code and adhere to Python best practices where possible and use an appropriate logger for debug and important steps ####
 
 ### For all tasks think about error scenarios and how to handle any unexpected situations ###
+
+---
+
+
+
+# A short description of what I did for the three tasks of this challenge
+
+## Custom exception classes
+
+All domain errors inherit from 'AppError'. Each subclass sets an HTTP status code and a message. FastAPI maps these to JSON responses like `{"detail": "..."}` via `register_exception_handlers(app)` in `src/main.py`.
+
+
+`AppError` | 500 (default) | Base class; shared shape for all app errors.
+`CustomerNotFoundError` | 404 | No customer for 'GET /customer/{id}'.
+`InvoiceNotFoundError` | 404 | No invoice for a given id.
+`InvoiceRecordNotFoundError` | 404 | No database row for the given UUID.
+`FakePayFailedError` | 402 | FakePay authorization failed when paying.
+`InvoiceNotPendingError` | 409 | Pay attempted on an invoice that is not PENDING.
+`DatabaseUnavailableError` | 503 | DB connection / availability issue.
+`DatabaseOperationError` | 500 | Other database errors during a query or update.
+`BadRequestError` | 400 | Invalid or bad request.
+`InvalidCardNumberError` | 400 | Card number does not normalize to 16 digits.
+`InvalidCardExpiryError` | 400 | Expiry format invalid or card is expired.
+
+## Pagination for `GET /invoices`
+
+Listing is page-based, not “return everything.” Query parameters:
+
+- `page` — 1-based page index (default '1', minimum '1').
+- `pageSize` — rows per page (default '10', between '1' and '100').
+
+## Invoice routes in one module
+
+All invoice-related endpoints live in `src/routers/invoices.py`. A factory `build_invoice_router(invoice_service, limiter)` returns an `APIRouter` with the same URL paths as before (e.g. `/invoice/{id}`, `/invoices`, `POST /invoice`, pay route). `src/main.py` imports that factory and mounts the router on the app with `app.include_router(build_invoice_router(invoice_service, limiter))`, so `main.py` stays relatively unconvoluted.

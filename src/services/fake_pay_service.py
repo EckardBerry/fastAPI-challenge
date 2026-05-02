@@ -17,11 +17,13 @@ class FakePay:
                 transaction_id=transaction_id,
                 card=card,
             ).model_dump(mode="json", by_alias=True)
+
             async with self.client_session.post(
                 self.fakepay_url,
                 json=payload,
                 headers={"Content-Type": "application/json"},
             ) as resp:
                 return resp.status == 200
+                
         except aiohttp.ClientError:
             return False

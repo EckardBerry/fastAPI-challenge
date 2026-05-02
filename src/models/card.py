@@ -18,7 +18,7 @@ class Card(BaseModel):
     def normalize_pan(cls, value):
         """Normalize the card number to exactly 16 digits."""
         if isinstance(value, str):
-            return "".join(c for c in value if c.isdigit())
+            return "".join(part for part in value if part.isdigit())
         return value
 
 
@@ -34,7 +34,7 @@ class PayCardBody(BaseModel):
     def normalize_pan(cls, value):
         """Normalize the card number to exactly 16 digits."""
         if isinstance(value, str):
-            return "".join(c for c in value if c.isdigit())
+            return "".join(part for part in value if part.isdigit())
         return value
 
     @field_validator("expiry", mode="before")

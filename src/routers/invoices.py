@@ -113,6 +113,7 @@ def build_invoice_router(
         )
 
         try:
+            # Total number of invoices matching the filter.
             total = count_invoices(invoice_status=status_filter)
             records = list_invoices_with_customers(
                 invoice_status=status_filter,
@@ -122,21 +123,16 @@ def build_invoice_router(
         except OperationalError:
             logger.exception("Database unavailable while listing invoices")
             raise DatabaseUnavailableError()
-        except SQLAlchemyError:
-            logger.exception("Database error while listing invoices")
+        except SQLAlchemyError as sql_error:
+            logger.exception(f"Database error while listing invoices: {sql_error}")
             raise DatabaseOperationError("Failed to load invoices")
 
+        # Update the response headers with the computed values.
         response.headers["X-Total-Count"] = str(total)
         response.headers["X-Page"] = str(page)
         response.headers["X-Page-Size"] = str(page_size)
 
-        logger.info(
-            "Returned %s invoice(s) (total matching=%s, page=%s)",
-            len(records),
-            total,
-            page,
-        )
-
+        # Return a list of InvoiceResponse serialized invoices.
         return [
             map_db_to_invoice_response(invoice_db, customer_db)
             for invoice_db, customer_db in records
@@ -156,6 +152,7 @@ def build_invoice_router(
         Two identical requests before the first commit can still cause a race condition;
         use spacing or the rate limit to try and prevent this.
         """
+        # Card is optional, if not provided, check for recent invoice with the same customer, description, amount.
         if invoice_data.card is None:
             recent = find_recent_matching_invoice(
                 customer_id=invoice_data.customer_id,
@@ -168,14 +165,16 @@ def build_invoice_router(
                     "Duplicate POST suppressed: returning existing invoice %s",
                     invoice_db.id,
                 )
+                # Return a serialized InvoiceResponse for the existing invoice.
                 return map_db_to_invoice_response(invoice_db, customer_db)
 
         try:
+            # Create new invoice and charge via FakePay service if card is provided.
             return await invoice_service.execute_invoice_creation(invoice_data)
         except AppError:
             raise
         except Exception as error:
-            logger.exception("Unexpected error creating invoice")
+            logger.exception(f"Unexpected error creating invoice: {error}")
             raise BadRequestError(str(error))
 
     @router.post(
@@ -190,13 +189,16 @@ def build_invoice_router(
         # Checking the card body is valid and raising an exception if it is not.
         card = parse_pay_card(card_body)
         
+        # Query db for invoice and customer.
         db_row = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
         if db_row is None:
             raise InvoiceNotFoundError(str(invoice_id))
         invoice_db, customer_db = db_row
+
         if invoice_db.invoice_status != Status.PENDING.value:
             raise InvoiceNotPendingError(invoice_db.invoice_status)
 
+        # Authorize payment via FakePay service.
         payment_successful = await invoice_service.authorize_payment(
             amount=invoice_db.amount,
             transaction_id=str(invoice_id),
@@ -205,15 +207,20 @@ def build_invoice_router(
         if not payment_successful:
             raise FakePayFailedError()
 
+        # Update invoice status to PAID.
         updated = update_invoice_status(str(invoice_id), Status.PAID)
         if not updated:
             raise InvoiceNotFoundError(str(invoice_id))
 
+        # Get the updated invoice and customer fresh from the db.
         invoice_db, customer_db = get_joined_invoice_customer_by_id(
             invoice_id=str(invoice_id)
         )
+        # Return a serialized InvoiceResponse for the updated invoice.
         invoice_response = map_db_to_invoice_response(invoice_db, customer_db)
+        # Mask the card number, do not return the card number in the response.
         masked_card = MaskedCard.from_card(card)
+        # Return the updated invoice with the masked card.
         return invoice_response.model_copy(update={"card": masked_card})
 
     return router
