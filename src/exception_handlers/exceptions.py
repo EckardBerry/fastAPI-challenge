@@ -77,6 +77,27 @@ class BadRequestError(AppError):
         super().__init__(detail)
 
 
+class InvalidCardNumberError(AppError):
+    """PAN must normalize to exactly 16 digits (used when paying an invoice)."""
+
+    status_code = 400
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Card number must contain exactly 16 digits "
+            "(spaces and punctuation are ignored)"
+        )
+
+
+class InvalidCardExpiryError(AppError):
+    """Expiry must be MM-YYYY and the card must not be expired (pay endpoint)."""
+
+    status_code = 400
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+
+
 async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 

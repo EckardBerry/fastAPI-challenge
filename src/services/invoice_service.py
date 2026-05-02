@@ -20,6 +20,7 @@ from src.services.fake_pay_service import FakePay
 
 
 class InvoicingService():
+    """Service for invoicing which makes use of the FakePay service to authorize payments."""
     def __init__(self, settings):
         self.fake_pay = FakePay(settings)
 
@@ -33,6 +34,7 @@ class InvoicingService():
         )
 
     async def get_invoice(self, invoice_id: UUID):
+        """Get an invoice by its ID."""
         invoice_customer = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
         if invoice_customer is None:
             raise InvoiceRecordNotFoundError()
@@ -43,7 +45,7 @@ class InvoicingService():
         return 200, invoice_response.model_dump(exclude_none=True, by_alias=True)
 
     async def execute_invoice_creation(self, invoice_data: InvoiceRequest) -> InvoiceResponse:
-        """Persist a new invoice and optionally charge via FakePay; return ``InvoiceResponse``."""
+        """Persist a new invoice and optionally charge via FakePay; return InvoiceResponse."""
         customer = get_customer_by_id(invoice_data.customer_id)
         if customer is None:
             raise CustomerNotFoundError(invoice_data.customer_id)

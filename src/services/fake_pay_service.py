@@ -5,6 +5,7 @@ from src.models.fake_pay import FakePayRequest
 
 
 class FakePay:
+    """Service for authorizing payments via FakePay."""
     def __init__(self, settings):
         self.client_session = aiohttp.ClientSession()
         self.fakepay_url = settings.fakepay_url
