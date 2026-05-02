@@ -9,7 +9,7 @@ from src.models.enums import Status
 
 
 def coerce_invoice_amount(value):
-    """Shared coercion for request/response ``amount`` fields."""
+    """Shared coercion for request/response 'amount' fields."""
     if isinstance(value, bool):
         raise ValueError("amount must be a number")
     if isinstance(value, str):
@@ -25,6 +25,7 @@ def coerce_invoice_amount(value):
 
 
 class InvoiceRequest(BaseModel):
+    """Base model for invoice request."""
     model_config = ConfigDict(
         coerce_numbers_to_str=True,
         alias_generator=to_camel,
@@ -49,7 +50,7 @@ class InvoiceRequest(BaseModel):
 
 
 class InvoiceResponse(BaseModel):
-    """API invoice shape (standalone model avoids Pydantic subclass ``Field``/alias warnings)."""
+    """API invoice shape."""
 
     model_config = ConfigDict(
         use_enum_values=True,

@@ -8,7 +8,24 @@ from sqlalchemy.orm import class_mapper
 
 Base = declarative_base()
 
-class InvoiceDB(Base):
+
+class ColumnToDictMixin:
+    """This class and it's functionality is commonly shared between InvoiceDB and CustomerDB."""
+    def to_dict(self) -> dict:
+        data = {}
+        for column in class_mapper(self.__class__).columns:
+            data[column.key] = getattr(self, column.key)
+        return data
+
+
+class InvoiceDB(Base, ColumnToDictMixin):
+    """SQLAlchemy model for one invoice row in invoice_management.invoice.
+
+    Each row is a bill for a customer: what work was done, how much it costs,
+    and whether it is still pending, paid, etc. customer_id links to
+    CustomerDB.
+    """
+
     __tablename__ = "invoice"
     __table_args__ = {"schema": "invoice_management"}
 
@@ -26,17 +43,9 @@ class InvoiceDB(Base):
 
     # Relationship with Customer (many-to-one)
     customer = relationship("CustomerDB", back_populates="invoices")
-    
-    def to_dict(self):
-        """Convert SQLAlchemy object to dictionary, including relationships."""
-        # Use class_mapper to access columns and relationships
-        data = {}
-        for column in class_mapper(self.__class__).columns:
-            value = getattr(self, column.key)
-            data[column.key] = value
-        return data
-    
-class CustomerDB(Base):
+
+
+class CustomerDB(Base, ColumnToDictMixin):
     __tablename__ = "customer"
     __table_args__ = {"schema": "invoice_management"}  # Use schema if applicable
 
@@ -46,12 +55,3 @@ class CustomerDB(Base):
 
     # Relationship with InvoiceDB (one-to-many)
     invoices = relationship("InvoiceDB", back_populates="customer")
-    
-    def to_dict(self):
-        """Convert SQLAlchemy object to dictionary, including relationships."""
-        # Use class_mapper to access columns and relationships
-        data = {}
-        for column in class_mapper(self.__class__).columns:
-            value = getattr(self, column.key)
-            data[column.key] = value
-        return data
