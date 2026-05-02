@@ -79,13 +79,13 @@ async def list_invoices(
             ge=1,
             le=100,
             alias="pageSize",
-            description="Rows per page (default 10; max 100)",
+            description="Rows per page (default 10)",
         ),
     ] = 10,
 ):
     """
     List invoices as InvoiceResponse objects with optional status filter.
-    Results are paginated (default 10 per page); use X-Total-Count and page/pageSize to navigate.
+    Results are paginated (default 10 per page).
 
     Examples:
 
@@ -111,7 +111,7 @@ async def list_invoices(
 
     try:
         total = count_invoices(invoice_status=status_filter)
-        rows = list_invoices_with_customers(
+        records = list_invoices_with_customers(
             invoice_status=status_filter,
             limit=page_size,
             offset=offset,
@@ -129,7 +129,7 @@ async def list_invoices(
 
     logger.info(
         "Returned %s invoice(s) (total matching=%s, page=%s)",
-        len(rows),
+        len(records),
         total,
         page,
     )
@@ -148,11 +148,11 @@ async def invoice(request: Request, invoice_data: InvoiceRequest):
 
     Mitigations for rapid repeats:
     - Rate limit (30/minute per client IP).
-    - If the body has no ``card``, a recent row with the same customer, description, and amount
-      is treated as the same logical submit and returned again (no second insert).
-      Card-present creates always run the full payment path (each needs its own transaction id).
+    - If the body has no card, a recent record with the same customer, description, and amount
+      is treated as the same submit and returned.
 
-    Two identical requests before the first commit can still race; use spacing or the rate limit.
+    Two identical requests before the first commit can still cause a race condition; 
+    use spacing or the rate limit to try and prevent this.
     """
     if invoice_data.card is None:
         recent = find_recent_matching_invoice(
@@ -205,8 +205,7 @@ async def pay_pending_invoice(
     if not updated:
         raise InvoiceNotFoundError(str(invoice_id))
 
-    db_row = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
-    invoice_db, customer_db = db_row
+    invoice_db, customer_db = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
     invoice_response = map_db_to_invoice_response(invoice_db, customer_db)
     masked_card = MaskedCard.from_card(card)
     return invoice_response.model_copy(update={"card": masked_card})
