@@ -60,7 +60,6 @@ def get_joined_invoice_customer_by_id(invoice_id: str, db=None):
     return invoice_customer
 
 
-
 @with_db_session
 def create_invoice_in_db(invoice_data, invoice_id, status, db=None):
     new_invoice = InvoiceDB(

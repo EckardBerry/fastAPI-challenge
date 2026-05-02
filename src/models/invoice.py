@@ -3,23 +3,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
+from src.models.card import Card, MaskedCard
 from src.models.enums import Status
-from src.models.card import Card
-
-
-class MaskedCard(BaseModel):
-    number: str
-    expiry: str
-    name: str
-
-    @classmethod
-    def from_card(cls, card: Card) -> "MaskedCard":
-        card_number = card.number
-        return cls(
-            number=f"{card_number[:6]}********{card_number[-4:]}",
-            expiry=card.expiry,
-            name=card.name
-        )
 
 
 class InvoiceRequest(BaseModel):
@@ -40,6 +25,7 @@ class InvoiceRequest(BaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def round_amount(cls, value):
+        """The 'amount' value is coerced to a float and rounded to 2 decimal places."""
         if isinstance(value, bool):
             raise ValueError("amount must be a number")
         if isinstance(value, str):

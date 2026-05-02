@@ -6,9 +6,9 @@ from uuid import UUID
 from fastapi import FastAPI, Path, Query, Response, HTTPException
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
-from src.models.card import Card
+from src.models.card import Card, MaskedCard
 from src.models.enums import Status
-from src.models.invoice import InvoiceRequest, InvoiceResponse, MaskedCard
+from src.models.invoice import InvoiceRequest, InvoiceResponse
 from src.config.settings import Settings
 from src.services.invoice_service import InvoicingService
 from src.services.health_check_service import HealthCheckService
