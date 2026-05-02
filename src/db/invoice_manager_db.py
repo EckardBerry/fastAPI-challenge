@@ -51,14 +51,13 @@ def db_health_check(db=None):
 
 @with_db_session
 def get_customer_by_id(customer_id: int, db=None):
+    """Fetch a customer by their ID."""
     return db.query(CustomerDB).filter(CustomerDB.customer_id == customer_id).first()
 
 
 @with_db_session
 def get_joined_invoice_customer_by_id(invoice_id: str, db=None):
-    """
-    Fetch full invoice details by ID, including all invoice and customer fields.
-    """
+    """Fetch full invoice details by ID."""
     invoice_customer = (
         db.query(InvoiceDB, CustomerDB)
         .join(CustomerDB, CustomerDB.customer_id == InvoiceDB.customer_id)
@@ -78,8 +77,8 @@ def find_recent_matching_invoice(
     db=None,
 ) -> Optional[Tuple[InvoiceDB, CustomerDB]]:
     """
-    If the same payload was already persisted recently, return that row (newest match).
-    Used to soften accidental double-submits without a separate idempotency table.
+    If the same payload was already posted recently, return that row.
+    The idea is to soften accidental double-submits without a separate idempotency table.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=within_seconds)
     return (
@@ -98,6 +97,7 @@ def find_recent_matching_invoice(
 
 @with_db_session
 def create_invoice_in_db(invoice_data, invoice_id, status, db=None):
+    """Create a new invoice in the database."""
     new_invoice = InvoiceDB(
         id=invoice_id,
         customer_id=invoice_data.customer_id,
@@ -114,10 +114,12 @@ def create_invoice_in_db(invoice_data, invoice_id, status, db=None):
 
 @with_db_session
 def update_invoice_status(invoice_id: str, status: str, db=None):
+    """Update the status of an invoice in the database."""
     invoice = db.query(InvoiceDB).filter(InvoiceDB.id == invoice_id).first()
     if invoice is None:
         return False
     invoice.invoice_status = status
+
     db.commit()
     db.refresh(invoice)
     return True
@@ -132,6 +134,7 @@ def count_invoices(
     query = db.query(InvoiceDB)
     if invoice_status is not None:
         query = query.filter(InvoiceDB.invoice_status == invoice_status)
+
     return query.count()
 
 
@@ -143,8 +146,7 @@ def list_invoices_with_customers(
     db=None,
 ) -> List[Tuple[InvoiceDB, CustomerDB]]:
     """
-    Return invoice + customer rows with optional status filter and LIMIT/OFFSET pagination.
-    Ordered by creation time (newest first) then id for a stable sort across pages.
+    Return invoice and customer rows with (optional) status filter and LIMIT/OFFSET pagination.
     """
     query = db.query(InvoiceDB, CustomerDB).join(
         CustomerDB, CustomerDB.customer_id == InvoiceDB.customer_id
@@ -155,4 +157,5 @@ def list_invoices_with_customers(
         InvoiceDB.date_created.desc(),
         InvoiceDB.id.desc(),
     )
+    
     return query.limit(limit).offset(offset).all()
