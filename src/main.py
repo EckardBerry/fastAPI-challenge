@@ -1,36 +1,49 @@
 import logging
-import uuid
 from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import FastAPI, Path, Query, Response, HTTPException
+from fastapi import FastAPI, Path, Query, Request, Response
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from src.models.card import Card, MaskedCard
 from src.models.enums import Status
 from src.models.invoice import InvoiceRequest, InvoiceResponse
 from src.config.settings import Settings
+from src.exception_handlers import (
+    AppError,
+    BadRequestError,
+    DatabaseOperationError,
+    DatabaseUnavailableError,
+    FakePayFailedError,
+    InvoiceNotFoundError,
+    InvoiceNotPendingError,
+    register_exception_handlers,
+)
 from src.services.invoice_service import InvoicingService
 from src.services.health_check_service import HealthCheckService
 from src.db.invoice_manager_db import (
     count_invoices,
-    create_invoice_in_db,
-    get_customer_by_id,
+    find_recent_matching_invoice,
     get_joined_invoice_customer_by_id,
     list_invoices_with_customers,
     update_invoice_status,
 )
 from src.models.model_mappers import map_db_to_invoice_response
-from src.services.fake_pay_service import FakePay
 
 logger = logging.getLogger(__name__)
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
-settings=Settings()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+register_exception_handlers(app)
+
+settings = Settings()
 health_check_sevice = HealthCheckService(settings)
 invoice_service = InvoicingService(settings)
-fake_pay = FakePay(settings)
-
 
 
 @app.get("/health-check")
@@ -105,16 +118,10 @@ async def list_invoices(
         )
     except OperationalError:
         logger.exception("Database unavailable while listing invoices")
-        raise HTTPException(
-            status_code=503,
-            detail="Database temporarily unavailable",
-        )
+        raise DatabaseUnavailableError()
     except SQLAlchemyError:
         logger.exception("Database error while listing invoices")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to load invoices",
-        )
+        raise DatabaseOperationError("Failed to load invoices")
 
     response.headers["X-Total-Count"] = str(total)
     response.headers["X-Page"] = str(page)
@@ -133,59 +140,41 @@ async def list_invoices(
     ]
 
 
-@app.post("/invoice_create/", response_model=InvoiceResponse, status_code=201)
-async def create_new_invoice(invoice_data: InvoiceRequest):
-    try:
-        customer = get_customer_by_id(invoice_data.customer_id)
-        if customer is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Customer with id {invoice_data.customer_id} not found",
-            )
+@app.post("/invoice", response_model=InvoiceResponse, status_code=201)
+@limiter.limit("30/minute")
+async def invoice(request: Request, invoice_data: InvoiceRequest):
+    """
+    Create an invoice.
 
-        # Generate the ID first to sync with FakePay Transaction ID
-        invoice_id = str(uuid.uuid4())
-        invoice_status = "PENDING"
-        masked_card = None
+    Mitigations for rapid repeats:
+    - Rate limit (30/minute per client IP).
+    - If the body has no ``card``, a recent row with the same customer, description, and amount
+      is treated as the same logical submit and returned again (no second insert).
+      Card-present creates always run the full payment path (each needs its own transaction id).
 
-        # if Card is provided, take care of payment
-        if invoice_data.card:
-            # Call FakePay asynchronously
-            payment_successful = await fake_pay.authorize_payment(
-                amount=invoice_data.amount,
-                transaction_id=invoice_id,
-                card=invoice_data.card
-            )
-
-            if payment_successful:
-                invoice_status = "PAID"
-                # Mask the card for the response
-                masked_card = MaskedCard.from_card(invoice_data.card)
-            else:
-                raise HTTPException(status_code=402, detail="FakePay failed")
-
-        # Save new invoice to db
-        new_invoice = create_invoice_in_db(
-            invoice_data=invoice_data, 
-            invoice_id=invoice_id, 
-            status=invoice_status
+    Two identical requests before the first commit can still race; use spacing or the rate limit.
+    """
+    if invoice_data.card is None:
+        recent = find_recent_matching_invoice(
+            customer_id=invoice_data.customer_id,
+            job_description=invoice_data.job_description,
+            amount=float(invoice_data.amount),
         )
+        if recent is not None:
+            invoice_db, customer_db = recent
+            logger.info(
+                "Duplicate POST suppressed: returning existing invoice %s",
+                invoice_db.id,
+            )
+            return map_db_to_invoice_response(invoice_db, customer_db)
 
-        db_data = get_joined_invoice_customer_by_id(invoice_id=invoice_id)
-        invoice_db, customer_db = db_data
-
-        invoice_response = map_db_to_invoice_response(invoice_db, customer_db)
-        if masked_card is not None:
-            invoice_response = invoice_response.model_copy(update={"card": masked_card})
-        return invoice_response
-
-    except HTTPException:
+    try:
+        return await invoice_service.execute_invoice_creation(invoice_data)
+    except AppError:
         raise
     except Exception as error:
-        print('*************************')
-        print("ERROR:", repr(error))
-        print('*************************')
-        raise HTTPException(status_code=400, detail=str(error))
+        logger.exception("Unexpected error creating invoice")
+        raise BadRequestError(str(error))
 
 
 @app.post(
@@ -199,34 +188,22 @@ async def pay_pending_invoice(
 ):
     db_row = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
     if db_row is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No invoice found with id {invoice_id}",
-        )
+        raise InvoiceNotFoundError(str(invoice_id))
     invoice_db, customer_db = db_row
     if invoice_db.invoice_status != Status.PENDING.value:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Invoice status is {invoice_db.invoice_status}; "
-                "only PENDING invoices can be paid"
-            ),
-        )
+        raise InvoiceNotPendingError(invoice_db.invoice_status)
 
-    payment_successful = await fake_pay.authorize_payment(
+    payment_successful = await invoice_service.authorize_payment(
         amount=invoice_db.amount,
         transaction_id=str(invoice_id),
         card=card,
     )
     if not payment_successful:
-        raise HTTPException(status_code=402, detail="FakePay failed")
+        raise FakePayFailedError()
 
     updated = update_invoice_status(str(invoice_id), Status.PAID.value)
     if not updated:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No invoice found with id {invoice_id}",
-        )
+        raise InvoiceNotFoundError(str(invoice_id))
 
     db_row = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
     invoice_db, customer_db = db_row

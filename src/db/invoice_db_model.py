@@ -3,6 +3,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime, timezone
+
 from sqlalchemy.orm import class_mapper
 
 Base = declarative_base()
@@ -13,8 +14,12 @@ class InvoiceDB(Base):
 
     id = Column(CHAR(36), primary_key=True)  # UUID as primary key
     customer_id = Column(Integer, ForeignKey("invoice_management.customer.customer_id"), nullable=False)
-    date_created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-    date_modified = Column(TIMESTAMP, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    date_created = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+    date_modified = Column(
+        TIMESTAMP,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
     job_description = Column(String(100))
     amount = Column(DECIMAL(5, 2), nullable=False)
     invoice_status = Column(String(10), nullable=False, default="PENDING")
