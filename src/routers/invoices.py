@@ -35,11 +35,12 @@ def build_invoice_router(
     invoice_service: InvoicingService,
     limiter: Limiter,
 ) -> APIRouter:
-    """Invoice-related routes; paths stay the same as when they lived on ``app``."""
+    """Invoice-related routes; paths stay the same as when they lived on app.py file."""
     router = APIRouter(tags=["Invoices"])
 
     @router.get("/invoice/{invoice_id}")
     async def get_invoice(response: Response, invoice_id: UUID = Path(...)):
+        """Get an invoice by its ID."""
         response.status_code, json_response = await invoice_service.get_invoice(
             invoice_id
         )
@@ -71,8 +72,28 @@ def build_invoice_router(
         ] = 10,
     ):
         """
-        List invoices as InvoiceResponse objects with optional status filter.
-        Results are paginated (default 10 per page).
+        Return a page of invoices (with customer data) as JSON.
+
+        Query parameters (what callers put in the URL after ``?``):
+
+        - **invoiceStatus** (optional): If you omit it, you get every status. If you set it to
+          ``PAID``, ``PENDING``, or ``CANCELLED``, only rows with that status are counted and
+          returned. In Python the parameter is named ``invoice_status``; FastAPI accepts
+          ``invoiceStatus`` in the URL because of the ``alias``.
+        - **page** (optional, default ``1``): Which page you want, counting from 1 (not 0).
+          Must be at least 1.
+        - **pageSize** (optional, default ``10``): How many invoices per page. In code this is
+          ``page_size``; the URL name is ``pageSize`` (alias). Allowed range is 1 through 100.
+
+        **Why it looks like ``Annotated[..., Query(...)]`` in code:** FastAPI uses those
+        annotations to know each argument comes from the query string, to validate numbers
+        (e.g. page and page size bounds), to document the API, and to map camelCase query names
+        to snake_case Python names.
+
+        **Pagination in practice:** The service skips ``(page - 1) * pageSize`` rows and then
+        takes at most ``pageSize`` rows. Response headers tell you the full picture:
+        ``X-Total-Count`` (how many rows match the filter), ``X-Page`` (current page),
+        ``X-Page-Size`` (rows per page for this request).
 
         Examples:
 

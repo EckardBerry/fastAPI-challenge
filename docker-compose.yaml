@@ -1,12 +1,3 @@
-# MySQL 8 + FastAPI invoice app (matches README / SQLAlchemy mysql+mysqlconnector URL).
-#
-# API service: src/ is bind-mounted and Uvicorn runs with --reload (edit Python files on the host
-# and the app restarts automatically). Dependency changes still need: docker compose build api
-#
-# FakePay runs on the host by default (see fake_pay.py). The API container reaches it via
-# host.docker.internal:9000. Start FakePay in another terminal: python fake_pay.py
-#
-# Linux (Docker Engine): extra_hosts provides host.docker.internal.
 
 services:
   mysql:

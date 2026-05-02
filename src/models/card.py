@@ -16,6 +16,7 @@ class Card(BaseModel):
     @field_validator("number", mode="before")
     @classmethod
     def normalize_pan(cls, value):
+        """Normalize the card number to exactly 16 digits."""
         if isinstance(value, str):
             return "".join(c for c in value if c.isdigit())
         return value

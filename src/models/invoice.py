@@ -42,10 +42,12 @@ class InvoiceRequest(BaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def round_amount(cls, value):
+        """Coerce the amount to a float and round to 2 decimal places."""
         return coerce_invoice_amount(value)
 
     @property
     def formatted_price(self):
+        """Format the amount to 2 decimal places."""
         return "{:.2f}".format(self.amount)
 
 
