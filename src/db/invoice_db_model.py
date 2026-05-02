@@ -15,15 +15,14 @@ class ColumnToDictMixin:
         data = {}
         for column in class_mapper(self.__class__).columns:
             data[column.key] = getattr(self, column.key)
+            
         return data
 
 
 class InvoiceDB(Base, ColumnToDictMixin):
-    """SQLAlchemy model for one invoice row in invoice_management.invoice.
-
-    Each row is a bill for a customer: what work was done, how much it costs,
-    and whether it is still pending, paid, etc. customer_id links to
-    CustomerDB.
+    """
+    SQLAlchemy model for one invoice record in invoice_management.invoice.
+    customer_id links to CustomerDB.
     """
 
     __tablename__ = "invoice"
@@ -46,6 +45,7 @@ class InvoiceDB(Base, ColumnToDictMixin):
 
 
 class CustomerDB(Base, ColumnToDictMixin):
+    """SQLAlchemy model for one customer record in invoice_management.customer."""
     __tablename__ = "customer"
     __table_args__ = {"schema": "invoice_management"}  # Use schema if applicable
 
