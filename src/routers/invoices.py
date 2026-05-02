@@ -74,26 +74,22 @@ def build_invoice_router(
         """
         Return a page of invoices (with customer data) as JSON.
 
-        Query parameters (what callers put in the URL after ``?``):
-
-        - **invoiceStatus** (optional): If you omit it, you get every status. If you set it to
-          ``PAID``, ``PENDING``, or ``CANCELLED``, only rows with that status are counted and
-          returned. In Python the parameter is named ``invoice_status``; FastAPI accepts
-          ``invoiceStatus`` in the URL because of the ``alias``.
-        - **page** (optional, default ``1``): Which page you want, counting from 1 (not 0).
+        - invoiceStatus (optional): If you omit it, you get every status. If you set it to
+          PAID, PENDING, or CANCELLED, only rows with that status are counted and
+          returned.
+        - page (optional, default 1): Which page you want, counting from 1 (not 0).
           Must be at least 1.
-        - **pageSize** (optional, default ``10``): How many invoices per page. In code this is
-          ``page_size``; the URL name is ``pageSize`` (alias). Allowed range is 1 through 100.
+        - pageSize (optional, default 10): How many invoices per page.
 
-        **Why it looks like ``Annotated[..., Query(...)]`` in code:** FastAPI uses those
+        Annotated[..., Query(...)] in code: FastAPI uses those
         annotations to know each argument comes from the query string, to validate numbers
         (e.g. page and page size bounds), to document the API, and to map camelCase query names
         to snake_case Python names.
 
-        **Pagination in practice:** The service skips ``(page - 1) * pageSize`` rows and then
-        takes at most ``pageSize`` rows. Response headers tell you the full picture:
-        ``X-Total-Count`` (how many rows match the filter), ``X-Page`` (current page),
-        ``X-Page-Size`` (rows per page for this request).
+        Pagination: The service skips (page - 1) * pageSize rows and then
+        takes at most pageSize rows. Response headers tell you the full picture:
+        X-Total-Count (how many rows match the filter), X-Page (current page),
+        X-Page-Size (rows per page for this request).
 
         Examples:
 
