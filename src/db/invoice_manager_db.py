@@ -1,11 +1,12 @@
 from functools import wraps
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from typing import List, Optional, Tuple
+
+from sqlalchemy import create_engine, exists, select
 from sqlalchemy.exc import OperationalError
-from sqlalchemy import exists, select
-from src.db.invoice_db_model import InvoiceDB, CustomerDB
+from sqlalchemy.orm import sessionmaker
+
 from src.config.settings import Settings
-import uuid
+from src.db.invoice_db_model import CustomerDB, InvoiceDB
 
 
 settings = Settings()
@@ -85,3 +86,39 @@ def update_invoice_status(invoice_id: str, status: str, db=None):
     db.commit()
     db.refresh(invoice)
     return True
+
+
+@with_db_session
+def count_invoices(
+    invoice_status: Optional[str] = None,
+    db=None,
+) -> int:
+    """Return total invoice rows, optionally restricted by status."""
+    query = db.query(InvoiceDB)
+    if invoice_status is not None:
+        query = query.filter(InvoiceDB.invoice_status == invoice_status)
+    return query.count()
+
+
+@with_db_session
+def list_invoices_with_customers(
+    invoice_status: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0,
+    db=None,
+) -> List[Tuple[InvoiceDB, CustomerDB]]:
+    """
+    Return invoice + customer rows with optional status filter and LIMIT/OFFSET pagination.
+    Ordered by creation time (newest first) then id for a stable sort across pages.
+    """
+    query = (
+        db.query(InvoiceDB, CustomerDB)
+        .join(CustomerDB, CustomerDB.customer_id == InvoiceDB.customer_id)
+    )
+    if invoice_status is not None:
+        query = query.filter(InvoiceDB.invoice_status == invoice_status)
+    query = query.order_by(
+        InvoiceDB.date_created.desc(),
+        InvoiceDB.id.desc(),
+    )
+    return query.limit(limit).offset(offset).all()
