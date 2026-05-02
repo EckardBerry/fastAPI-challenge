@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 
 class AppError(Exception):
-    """Base class for application errors (each subclass sets ``status_code``)."""
+    """Base class for application errors."""
 
     status_code: int = 500
 
@@ -32,7 +32,7 @@ class InvoiceNotFoundError(AppError):
 
 
 class InvoiceRecordNotFoundError(AppError):
-    """Used when GET /invoice/{{id}} finds no row (README wording)."""
+    """Used when GET /invoice/{{id}} finds no row."""
 
     status_code = 404
 
