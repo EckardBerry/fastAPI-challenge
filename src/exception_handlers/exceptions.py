@@ -16,6 +16,7 @@ class AppError(Exception):
 
 
 class CustomerNotFoundError(AppError):
+    """Used when GET /customer/id finds no record."""
     status_code = 404
 
     def __init__(self, customer_id: int) -> None:
@@ -23,6 +24,7 @@ class CustomerNotFoundError(AppError):
 
 
 class InvoiceNotFoundError(AppError):
+    """Used when GET /invoice/id finds no record."""
     status_code = 404
 
     def __init__(self, invoice_id: str, *, detail: str | None = None) -> None:
@@ -32,7 +34,7 @@ class InvoiceNotFoundError(AppError):
 
 
 class InvoiceRecordNotFoundError(AppError):
-    """Used when GET /invoice/{{id}} finds no row."""
+    """Used when GET /invoice/id finds no row."""
 
     status_code = 404
 
@@ -41,6 +43,7 @@ class InvoiceRecordNotFoundError(AppError):
 
 
 class FakePayFailedError(AppError):
+    """Used when FakePay fails to authorize a payment."""
     status_code = 402
 
     def __init__(self, detail: str = "FakePay failed") -> None:
@@ -48,6 +51,7 @@ class FakePayFailedError(AppError):
 
 
 class InvoiceNotPendingError(AppError):
+    """Used when trying to pay a non-PENDING invoice."""
     status_code = 409
 
     def __init__(self, current_status: str) -> None:
@@ -57,6 +61,7 @@ class InvoiceNotPendingError(AppError):
 
 
 class DatabaseUnavailableError(AppError):
+    """Used when the database is temporarily unavailable."""
     status_code = 503
 
     def __init__(self, detail: str = "Database temporarily unavailable") -> None:
@@ -64,6 +69,7 @@ class DatabaseUnavailableError(AppError):
 
 
 class DatabaseOperationError(AppError):
+    """Used when a database operation fails."""
     status_code = 500
 
     def __init__(self, detail: str = "Database operation failed") -> None:
@@ -71,6 +77,7 @@ class DatabaseOperationError(AppError):
 
 
 class BadRequestError(AppError):
+    """Used when the request is invalid."""
     status_code = 400
 
     def __init__(self, detail: str) -> None:
@@ -99,8 +106,10 @@ class InvalidCardExpiryError(AppError):
 
 
 async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
+    """Handle AppError exceptions and return a JSON response with the error details."""
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 def register_exception_handlers(app) -> None:
+    """Register exception handlers for the app to use them in the main.py file."""
     app.add_exception_handler(AppError, app_error_handler)
