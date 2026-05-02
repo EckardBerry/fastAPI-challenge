@@ -201,7 +201,7 @@ async def pay_pending_invoice(
     if not payment_successful:
         raise FakePayFailedError()
 
-    updated = update_invoice_status(str(invoice_id), Status.PAID.value)
+    updated = update_invoice_status(str(invoice_id), Status.PAID)
     if not updated:
         raise InvoiceNotFoundError(str(invoice_id))
 

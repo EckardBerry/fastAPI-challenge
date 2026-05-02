@@ -12,6 +12,7 @@ from src.exception_handlers import (
     InvoiceRecordNotFoundError,
 )
 from src.models.card import Card, MaskedCard
+from src.models.enums import Status
 from src.models.invoice import InvoiceRequest, InvoiceResponse
 from src.models.model_mappers import map_db_to_invoice_response
 from src.services.fake_pay_service import FakePay
@@ -48,7 +49,7 @@ class InvoicingService():
             raise CustomerNotFoundError(invoice_data.customer_id)
 
         invoice_id = str(uuid.uuid4())
-        invoice_status = "PENDING"
+        invoice_status = Status.PENDING
         masked_card = None
 
         if invoice_data.card:
@@ -58,7 +59,7 @@ class InvoicingService():
                 card=invoice_data.card,
             )
             if payment_successful:
-                invoice_status = "PAID"
+                invoice_status = Status.PAID
                 masked_card = MaskedCard.from_card(invoice_data.card)
             else:
                 raise FakePayFailedError()

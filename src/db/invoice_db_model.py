@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import class_mapper
 
+from src.models.enums import Status
+
 Base = declarative_base()
 
 
