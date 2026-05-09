@@ -5,7 +5,7 @@ from slowapi.util import get_remote_address
 
 from src.config.settings import Settings
 from src.exception_handlers import register_exception_handlers
-from src.routers.invoices import InvoiceRoutes
+from src.routers.invoices import build_invoice_router
 from src.services.health_check_service import HealthCheckService
 from src.services.invoice_service import InvoicingService
 
@@ -27,4 +27,4 @@ async def health_check(response: Response):
 
 
 # All invoice routes/endpoints are grouped together in routers/invoices.py file.
-app.include_router(InvoiceRoutes(invoice_service, limiter).router)
+app.include_router(build_invoice_router(invoice_service, limiter))

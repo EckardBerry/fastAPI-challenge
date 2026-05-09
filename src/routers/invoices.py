@@ -233,3 +233,11 @@ class InvoiceRoutes:
             masked_card = MaskedCard.from_card(card)
             # Return the updated invoice with the masked card.
             return invoice_response.model_copy(update={"card": masked_card})
+
+
+def build_invoice_router(
+    invoice_service: InvoicingService,
+    limiter: Limiter,
+) -> APIRouter:
+    """Return the invoice router (same as ``InvoiceRoutes(...).router``)."""
+    return InvoiceRoutes(invoice_service, limiter).router
