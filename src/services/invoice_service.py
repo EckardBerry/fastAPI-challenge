@@ -34,16 +34,13 @@ class InvoicingService():
             card=card,
         )
 
-    async def get_invoice(self, invoice_id: UUID):
+    async def get_invoice(self, invoice_id: UUID) -> InvoiceResponse:
         """Get an invoice by its ID."""
         invoice_customer = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
         if invoice_customer is None:
             raise InvoiceRecordNotFoundError()
 
-        invoice_response: InvoiceResponse = map_db_to_invoice_response(
-            invoice_customer[0], invoice_customer[1]
-        )
-        return 200, invoice_response.model_dump(exclude_none=True, by_alias=True)
+        return map_db_to_invoice_response(invoice_customer[0], invoice_customer[1])
 
     async def execute_invoice_creation(self, invoice_data: InvoiceRequest) -> InvoiceResponse:
         """Persist a new invoice and optionally charge via FakePay; return InvoiceResponse."""

@@ -49,13 +49,14 @@ class InvoiceRoutes:
         limiter = self._limiter
         router = self.router
 
-        @router.get("/invoice/{invoice_id}")
-        async def get_invoice(response: Response, invoice_id: UUID = Path(...)):
+        @router.get(
+            "/invoice/{invoice_id}",
+            response_model=InvoiceResponse,
+            response_model_exclude_none=True,
+        )
+        async def get_invoice(invoice_id: UUID = Path(...)):
             """Get an invoice by its ID."""
-            response.status_code, json_response = await invoice_service.get_invoice(
-                invoice_id
-            )
-            return json_response
+            return await invoice_service.get_invoice(invoice_id)
 
         @router.get(
             "/invoices",
