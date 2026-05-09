@@ -239,5 +239,5 @@ def build_invoice_router(
     invoice_service: InvoicingService,
     limiter: Limiter,
 ) -> APIRouter:
-    """Return the invoice router (same as ``InvoiceRoutes(...).router``)."""
+    """Return the invoice router to be used in the main.py file."""
     return InvoiceRoutes(invoice_service, limiter).router
