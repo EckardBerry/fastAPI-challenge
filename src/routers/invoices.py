@@ -163,9 +163,9 @@ class InvoiceRoutes:
             Two identical requests before the first commit can still cause a race condition;
             use spacing or the rate limit to try and prevent this.
             """
-            existing_invoice = InvoiceResponse.process_invoice_and_payment_request(
-                invoice_data=invoice_data,
-            )
+            # invoice_data is an instance of InvoiceRequest which is a Pydantic instance of all the fields
+            # serialized and validated by the InvoiceRequest serializer
+            existing_invoice = invoice_data._duplicate_invoice_response
             if existing_invoice is not None:
                 return existing_invoice
 
