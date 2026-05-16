@@ -8,7 +8,6 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from src.db.invoice_manager_db import (
     count_invoices,
-    find_recent_matching_invoice,
     get_joined_invoice_customer_by_id,
     list_invoices_with_customers,
     update_invoice_status,
@@ -164,21 +163,11 @@ class InvoiceRoutes:
             Two identical requests before the first commit can still cause a race condition;
             use spacing or the rate limit to try and prevent this.
             """
-            # Card is optional, if not provided, check for recent invoice with the same customer, description, amount.
-            if invoice_data.card is None:
-                recent = find_recent_matching_invoice(
-                    customer_id=invoice_data.customer_id,
-                    job_description=invoice_data.job_description,
-                    amount=float(invoice_data.amount),
-                )
-                if recent is not None:
-                    invoice_db, customer_db = recent
-                    logger.info(
-                        "Duplicate POST suppressed: returning existing invoice %s",
-                        invoice_db.id,
-                    )
-                    # Return a serialized InvoiceResponse for the existing invoice.
-                    return map_db_to_invoice_response(invoice_db, customer_db)
+            existing_invoice = InvoiceResponse.process_invoice_and_payment_request(
+                invoice_data=invoice_data,
+            )
+            if existing_invoice is not None:
+                return existing_invoice
 
             try:
                 # Create new invoice and charge via FakePay service if card is provided.
