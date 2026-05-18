@@ -55,17 +55,13 @@ class InvoiceRequest(BaseModel):
 
     @model_validator(mode="after")
     def _process_invoice_request(self) -> Self:
-        """After parse: detect duplicate request for payment."""
+        """After parse, check for duplicate requests."""
         find_recent_matching_invoice = getattr(
             import_module("src.db.invoice_manager_db"), "find_recent_matching_invoice"
         )
         map_db_to_invoice_response = getattr(
             import_module("src.models.model_mappers"), "map_db_to_invoice_response"
         )
-
-        if self.card is not None:
-            self._duplicate_invoice_response = None
-            return self
 
         recent = find_recent_matching_invoice(
             customer_id=self.customer_id,

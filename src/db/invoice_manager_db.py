@@ -18,8 +18,7 @@ engine = create_engine(url, echo=True)
 # Create a sessionmaker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Ignore duplicate POSTs that hit within this many seconds (same customer, description, amount,
-# and only for creates without an inline card — card-present creates always run full flow).
+# Ignore duplicate POSTs that hit within this many seconds (same customer, description, amount).
 DUPLICATE_INVOICE_WINDOW_SECONDS = 90
 
 
@@ -58,6 +57,8 @@ def get_customer_by_id(customer_id: int, db=None):
 @with_db_session
 def get_joined_invoice_customer_by_id(invoice_id: str, db=None):
     """Fetch full invoice details by ID."""
+    # This query consists of InvoiceDB & CustomerDB, it will by default
+    # return each separately although this is a single .join query
     invoice_customer = (
         db.query(InvoiceDB, CustomerDB)
         .join(CustomerDB, CustomerDB.customer_id == InvoiceDB.customer_id)
@@ -98,12 +99,14 @@ def find_recent_matching_invoice(
 @with_db_session
 def create_invoice_in_db(invoice_data, invoice_id, status, db=None):
     """Create a new invoice in the database."""
+    # fields not included in 'invoice_data' are manually added, fields that
+    # should not be included are removed with **invoice_data.model_dump(include=...
     new_invoice = InvoiceDB(
         id=invoice_id,
-        customer_id=invoice_data.customer_id,
-        job_description=invoice_data.job_description,
-        amount=invoice_data.amount,
         invoice_status=status,
+        **invoice_data.model_dump(
+            include={"customer_id", "job_description", "amount"},
+        ),
     )
 
     db.add(new_invoice)

@@ -23,7 +23,7 @@ from src.exception_handlers import (
 )
 from src.models.card import MaskedCard, PayCardBody, parse_pay_card
 from src.models.enums import Status
-from src.models.invoice import InvoiceRequest, InvoiceResponse
+from src.models.invoice_model import InvoiceRequest, InvoiceResponse
 from src.models.model_mappers import map_db_to_invoice_response
 from src.services.invoice_service import InvoicingService
 
@@ -157,8 +157,8 @@ class InvoiceRoutes:
 
             Mitigations for rapid repeats:
             - Rate limit (30/minute per client IP).
-            - If the body has no card, a recent record with the same customer, description, and amount
-              is treated as the same submit and returned.
+            - A recent record with the same customer, description, and amount is treated as the
+              same submit and returned.
 
             Two identical requests before the first commit can still cause a race condition;
             use spacing or the rate limit to try and prevent this.

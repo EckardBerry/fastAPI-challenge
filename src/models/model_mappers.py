@@ -1,4 +1,4 @@
-from src.models.invoice import InvoiceResponse
+from src.models.invoice_model import InvoiceResponse
 from src.db.invoice_db_model import CustomerDB, InvoiceDB
 
 
