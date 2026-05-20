@@ -11,8 +11,6 @@ from src.db.invoice_manager_db import (
     list_invoices_with_customers,
 )
 from src.exception_handlers import (
-    AppError,
-    BadRequestError,
     DatabaseOperationError,
     DatabaseUnavailableError,
 )
@@ -158,20 +156,13 @@ class InvoiceRoutes:
             Two identical requests before the first commit can still cause a race condition;
             use spacing or the rate limit to try and prevent this.
             """
-            # invoice_data is an instance of InvoiceRequest which is a Pydantic instance of all the fields
-            # serialized and validated by the InvoiceRequest serializer
-            existing_invoice = invoice_data._duplicate_invoice_response
-            if existing_invoice is not None:
-                return existing_invoice
-
-            try:
-                # Create new invoice and charge via FakePay service if card is provided.
-                return await invoice_service.execute_invoice_creation(invoice_data)
-            except AppError:
-                raise
-            except Exception as error:
-                logger.exception(f"Unexpected error creating invoice: {error}")
-                raise BadRequestError(str(error))
+            # Calling the appropriate function from the serializer to create an invoice
+            create_invoice_response = await InvoiceRequest.process_creation_request(
+                invoice_data=invoice_data,
+                invoice_service=invoice_service,
+            )
+            # Return an InvoiceRequest object
+            return create_invoice_response
 
         @router.post(
             "/invoice/pay/{invoice_id}",

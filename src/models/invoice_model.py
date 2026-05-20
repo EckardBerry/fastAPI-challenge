@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import TYPE_CHECKING, Optional, Self, Union
 from uuid import UUID
 
@@ -6,18 +7,19 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
     field_validator,
-    model_validator,
 )
 from pydantic.alias_generators import to_camel
 
 from src.db.invoice_manager_db import (
+    create_invoice_in_db,
     find_recent_matching_invoice,
+    get_customer_by_id,
     get_joined_invoice_customer_by_id,
     update_invoice_status,
 )
 from src.exception_handlers.exceptions import (
+    CustomerNotFoundError,
     FakePayFailedError,
     InvoiceNotFoundError,
     InvoiceNotPendingError,
@@ -62,31 +64,6 @@ class InvoiceRequest(BaseModel):
         default=None,
         description="Optional. If omitted, no payment is attempted and status stays PENDING.",
     )
-    _duplicate_invoice_response: Optional["InvoiceResponse"] = PrivateAttr(
-        default=None
-    )
-
-    @model_validator(mode="after")
-    def _process_invoice_request(self) -> Self:
-        """After parse, check for duplicate requests."""
-        recent = find_recent_matching_invoice(
-            customer_id=self.customer_id,
-            job_description=self.job_description,
-            amount=float(self.amount),
-        )
-        if recent is None:
-            self._duplicate_invoice_response = None
-            return self
-
-        invoice_db, customer_db = recent
-        logger.info(
-            "Duplicate POST suppressed: returning existing invoice %s",
-            invoice_db.id,
-        )
-        self._duplicate_invoice_response = map_db_to_invoice_response(
-            invoice_db, customer_db
-        )
-        return self
 
     @field_validator("amount", mode="before")
     @classmethod
@@ -98,6 +75,62 @@ class InvoiceRequest(BaseModel):
     def formatted_price(self):
         """Format the amount to 2 decimal places."""
         return "{:.2f}".format(self.amount)
+
+    @classmethod
+    async def process_creation_request(
+        cls,
+        invoice_data: Self,
+        invoice_service: "InvoicingService",
+    ) -> "InvoiceResponse":
+        """Create flow: dedupe, optional payment, persist, build response."""
+        recent = find_recent_matching_invoice(
+            customer_id=invoice_data.customer_id,
+            job_description=invoice_data.job_description,
+            amount=float(invoice_data.amount),
+        )
+        if recent is not None:
+            invoice_db, customer_db = recent
+            logger.info(
+                "Duplicate POST suppressed: returning existing invoice %s",
+                invoice_db.id,
+            )
+            return map_db_to_invoice_response(invoice_db, customer_db)
+
+        customer = get_customer_by_id(invoice_data.customer_id)
+        if not customer:
+            raise CustomerNotFoundError(customer_id=invoice_data.customer_id)
+
+        invoice_id = str(uuid.uuid4())
+        invoice_status = Status.PENDING
+        masked_card = None
+
+        if invoice_data.card:
+            payment_successful = await invoice_service.authorize_payment(
+                amount=invoice_data.amount,
+                transaction_id=invoice_id,
+                card=invoice_data.card,
+            )
+            if payment_successful:
+                invoice_status = Status.PAID
+                masked_card = MaskedCard.from_card(invoice_data.card)
+            else:
+                raise FakePayFailedError()
+
+        create_invoice_in_db(
+            invoice_data=invoice_data,
+            invoice_id=invoice_id,
+            status=invoice_status,
+        )
+
+        database_record = get_joined_invoice_customer_by_id(invoice_id=invoice_id)
+        if database_record is None:
+            raise InvoiceNotFoundError(invoice_id)
+
+        invoice_db, customer_db = database_record
+        invoice_response = map_db_to_invoice_response(invoice_db, customer_db)
+        if masked_card is not None:
+            invoice_response = invoice_response.model_copy(update={"card": masked_card})
+        return invoice_response
 
 
 class InvoiceResponse(BaseModel):
