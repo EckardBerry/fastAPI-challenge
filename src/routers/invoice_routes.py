@@ -8,20 +8,15 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from src.db.invoice_manager_db import (
     count_invoices,
-    get_joined_invoice_customer_by_id,
     list_invoices_with_customers,
-    update_invoice_status,
 )
 from src.exception_handlers import (
     AppError,
     BadRequestError,
     DatabaseOperationError,
     DatabaseUnavailableError,
-    FakePayFailedError,
-    InvoiceNotFoundError,
-    InvoiceNotPendingError,
 )
-from src.models.card import MaskedCard, PayCardBody, parse_pay_card
+from src.models.card import PayCardBody
 from src.models.enums import Status
 from src.models.invoice_model import InvoiceRequest, InvoiceResponse
 from src.models.model_mappers import map_db_to_invoice_response
@@ -187,42 +182,13 @@ class InvoiceRoutes:
             invoice_id: Annotated[UUID, Path(description="Invoice UUID")],
             card_body: PayCardBody,
         ):
-            # Checking the card body is valid and raising an exception if it is not.
-            card = parse_pay_card(card_body)
-
-            # Query db for invoice and customer.
-            db_row = get_joined_invoice_customer_by_id(invoice_id=str(invoice_id))
-            if db_row is None:
-                raise InvoiceNotFoundError(str(invoice_id))
-            invoice_db, customer_db = db_row
-
-            if invoice_db.invoice_status != Status.PENDING.value:
-                raise InvoiceNotPendingError(invoice_db.invoice_status)
-
-            # Authorize payment via FakePay service.
-            payment_successful = await invoice_service.authorize_payment(
-                amount=invoice_db.amount,
-                transaction_id=str(invoice_id),
-                card=card,
+            payment_response = await InvoiceResponse.process_payment_request(
+                invoice_id=invoice_id,
+                card_body=card_body,
+                invoice_service=invoice_service
             )
-            if not payment_successful:
-                raise FakePayFailedError()
-
-            # Update invoice status to PAID.
-            updated = update_invoice_status(str(invoice_id), Status.PAID)
-            if not updated:
-                raise InvoiceNotFoundError(str(invoice_id))
-
-            # Get the updated invoice and customer fresh from the db.
-            invoice_db, customer_db = get_joined_invoice_customer_by_id(
-                invoice_id=str(invoice_id)
-            )
-            # Return a serialized InvoiceResponse for the updated invoice.
-            invoice_response = map_db_to_invoice_response(invoice_db, customer_db)
-            # Mask the card number, do not return the card number in the response.
-            masked_card = MaskedCard.from_card(card)
-            # Return the updated invoice with the masked card.
-            return invoice_response.model_copy(update={"card": masked_card})
+            # Return an InvoiceResponse object
+            return payment_response
 
 
 def build_invoice_router(
