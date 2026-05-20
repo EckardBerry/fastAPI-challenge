@@ -182,6 +182,7 @@ class InvoiceRoutes:
             invoice_id: Annotated[UUID, Path(description="Invoice UUID")],
             card_body: PayCardBody,
         ):
+            # Calling the appropriate function from the serializer to process the payment
             payment_response = await InvoiceResponse.process_payment_request(
                 invoice_id=invoice_id,
                 card_body=card_body,
