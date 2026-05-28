@@ -1,7 +1,7 @@
 import aiohttp
 
-from src.models.card import Card
-from src.models.fake_pay import FakePayRequest
+from src.schemas.card import Card
+from src.schemas.fake_pay import FakePayRequest
 
 
 class FakePay:

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_validator
 
 from src.exception_handlers.exceptions import InvalidCardExpiryError, InvalidCardNumberError
-from src.models.regex import EXPIRY_DATE, PAN
+from src.schemas.regex import EXPIRY_DATE, PAN
 
 
 class Card(BaseModel):

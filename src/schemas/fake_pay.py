@@ -1,7 +1,7 @@
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from src.models.card import Card
+from src.schemas.card import Card
 
 
 class FakePayRequest(BaseModel):

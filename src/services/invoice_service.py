@@ -2,9 +2,9 @@ from uuid import UUID
 
 from src.db.invoice_manager_db import get_joined_invoice_customer_by_id
 from src.exception_handlers import InvoiceRecordNotFoundError
-from src.models.card import Card
-from src.models.invoice_model import InvoiceResponse
-from src.models.model_mappers import map_db_to_invoice_response
+from src.schemas.card import Card
+from src.schemas.invoice_schema import InvoiceResponse
+from src.schemas.model_mappers import map_db_to_invoice_response
 from src.services.fake_pay_service import FakePay
 
 

@@ -1,23 +1,13 @@
 import logging
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, Request, Response
 from slowapi import Limiter
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
-from src.db.invoice_manager_db import (
-    count_invoices,
-    list_invoices_with_customers,
-)
-from src.exception_handlers import (
-    DatabaseOperationError,
-    DatabaseUnavailableError,
-)
-from src.models.card import PayCardBody
-from src.models.enums import Status
-from src.models.invoice_model import InvoiceRequest, InvoiceResponse
-from src.models.model_mappers import map_db_to_invoice_response
+from src.schemas.card import PayCardBody
+from src.schemas.invoice_schema import InvoiceRequest, InvoiceResponse
 from src.services.invoice_service import InvoicingService
 
 logger = logging.getLogger(__name__)
@@ -57,23 +47,9 @@ class InvoiceRoutes:
         )
         async def list_invoices(
             response: Response,
-            invoice_status: Annotated[
-                Optional[Status],
-                Query(
-                    alias="invoiceStatus",
-                    description="Filter by PAID, PENDING, or CANCELLED (omit for all)",
-                ),
-            ] = None,
-            page: Annotated[int, Query(ge=1, description="1-based page index")] = 1,
-            page_size: Annotated[
-                int,
-                Query(
-                    ge=1,
-                    le=100,
-                    alias="pageSize",
-                    description="Rows per page (default 10)",
-                ),
-            ] = 10,
+            invoice_status=None,
+            page: int = 1,
+            page_size: int = 10,
         ):
             """
             Return a page of invoices (with customer data) as JSON.
@@ -85,16 +61,6 @@ class InvoiceRoutes:
               Must be at least 1.
             - pageSize (optional, default 10): How many invoices per page.
 
-            Annotated[..., Query(...)] in code: FastAPI uses those
-            annotations to know each argument comes from the query string, to validate numbers
-            (e.g. page and page size bounds), to document the API, and to map camelCase query names
-            to snake_case Python names.
-
-            Pagination: The service skips (page - 1) * pageSize rows and then
-            takes at most pageSize rows. Response headers tell you the full picture:
-            X-Total-Count (how many rows match the filter), X-Page (current page),
-            X-Page-Size (rows per page for this request).
-
             Examples:
 
                 All: GET /invoices
@@ -105,42 +71,19 @@ class InvoiceRoutes:
 
                 Combined: GET /invoices?invoiceStatus=PENDING&page=1&pageSize=10
             """
-            status_filter = invoice_status.value if invoice_status is not None else None
-            offset = (page - 1) * page_size
-
-            logger.debug(
-                "Listing invoices: status_filter=%s page=%s page_size=%s offset=%s",
-                status_filter,
-                page,
-                page_size,
-                offset,
+            invoices, total = await InvoiceResponse.list_invoices(
+                invoice_status=invoice_status,
+                page=page,
+                page_size=page_size,
             )
 
-            try:
-                # Total number of invoices matching the filter.
-                total = count_invoices(invoice_status=status_filter)
-                records = list_invoices_with_customers(
-                    invoice_status=status_filter,
-                    limit=page_size,
-                    offset=offset,
-                )
-            except OperationalError:
-                logger.exception("Database unavailable while listing invoices")
-                raise DatabaseUnavailableError()
-            except SQLAlchemyError as sql_error:
-                logger.exception(f"Database error while listing invoices: {sql_error}")
-                raise DatabaseOperationError("Failed to load invoices")
-
-            # Update the response headers with the computed values.
+            # Update the response headers before responding
             response.headers["X-Total-Count"] = str(total)
             response.headers["X-Page"] = str(page)
             response.headers["X-Page-Size"] = str(page_size)
 
             # Return a list of InvoiceResponse serialized invoices.
-            return [
-                map_db_to_invoice_response(invoice_db, customer_db)
-                for invoice_db, customer_db in records
-            ]
+            return invoices
 
         @router.post("/invoice", response_model=InvoiceResponse, status_code=201)
         @limiter.limit("30/minute")
@@ -177,7 +120,7 @@ class InvoiceRoutes:
             payment_response = await InvoiceResponse.process_payment_request(
                 invoice_id=invoice_id,
                 card_body=card_body,
-                invoice_service=invoice_service
+                invoice_service=invoice_service,
             )
             # Return an InvoiceResponse object
             return payment_response

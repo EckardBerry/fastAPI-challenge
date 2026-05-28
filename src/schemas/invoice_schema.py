@@ -1,6 +1,8 @@
 import logging
 import uuid
-from typing import TYPE_CHECKING, Optional, Self, Union
+from typing import TYPE_CHECKING, Optional, Self, Union, Annotated, Any
+from fastapi import APIRouter, Path, Query, Request, Response
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from uuid import UUID
 
 from pydantic import (
@@ -10,6 +12,10 @@ from pydantic import (
     field_validator,
 )
 from pydantic.alias_generators import to_camel
+from src.db.invoice_manager_db import (
+    count_invoices,
+    list_invoices_with_customers,
+)
 
 from src.db.invoice_manager_db import (
     create_invoice_in_db,
@@ -23,10 +29,12 @@ from src.exception_handlers.exceptions import (
     FakePayFailedError,
     InvoiceNotFoundError,
     InvoiceNotPendingError,
+    DatabaseUnavailableError,
+    DatabaseOperationError,
 )
-from src.models.card import Card, MaskedCard, PayCardBody, parse_pay_card
-from src.models.enums import Status
-from src.models.model_mappers import map_db_to_invoice_response
+from src.schemas.card import Card, MaskedCard, PayCardBody, parse_pay_card
+from src.schemas.enums import Status
+from src.schemas.model_mappers import map_db_to_invoice_response
 
 if TYPE_CHECKING:
     from src.services.invoice_service import InvoicingService
@@ -52,6 +60,7 @@ def coerce_invoice_amount(value):
 
 class InvoiceRequest(BaseModel):
     """Base model for invoice request."""
+
     model_config = ConfigDict(
         coerce_numbers_to_str=True,
         alias_generator=to_camel,
@@ -195,6 +204,59 @@ class InvoiceResponse(BaseModel):
         invoice_db, customer_db = updated_invoice
         # Map to an InvoiceResponse object
         invoice_response = map_db_to_invoice_response(invoice_db, customer_db)
-        return invoice_response.model_copy(
-            update={"card": MaskedCard.from_card(card)}
+        return invoice_response.model_copy(update={"card": MaskedCard.from_card(card)})
+
+    @classmethod
+    async def list_invoices(
+        cls,
+        invoice_status: Annotated[
+            Optional[Status],
+            Query(
+                alias="invoiceStatus",
+                description="Filter by PAID, PENDING, or CANCELLED (omit for all)",
+            ),
+        ] = None,
+        page: Annotated[int, Query(ge=1, description="1-based page index")] = 1,
+        page_size: Annotated[
+            int,
+            Query(
+                ge=1,
+                le=100,
+                alias="pageSize",
+                description="Rows per page (default 10)",
+            ),
+        ] = 10,
+    ) -> tuple[list[Any], int]:
+        """List all invoices."""
+        status_filter = invoice_status.value if invoice_status is not None else None
+        offset = (int(page) - 1) * int(page_size)
+
+        logger.debug(
+            "Listing invoices: status_filter=%s page=%s page_size=%s offset=%s",
+            status_filter,
+            page,
+            page_size,
+            offset,
         )
+
+        try:
+            # Total number of invoices matching the filter.
+            total = count_invoices(invoice_status=status_filter)
+            records = list_invoices_with_customers(
+                invoice_status=status_filter,
+                limit=page_size,
+                offset=offset,
+            )
+
+        except OperationalError:
+            logger.exception("Database unavailable while listing invoices")
+            raise DatabaseUnavailableError()
+        except SQLAlchemyError as sql_error:
+            logger.exception(f"Database error while listing invoices: {sql_error}")
+            raise DatabaseOperationError("Failed to load invoices")
+
+        # Return a list of InvoiceResponse serialized invoices and the total
+        return [
+            map_db_to_invoice_response(invoice_db, customer_db)
+            for invoice_db, customer_db in records
+        ], total
