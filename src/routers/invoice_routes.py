@@ -107,12 +107,13 @@ class InvoiceRoutes:
             use spacing or the rate limit to try and prevent this.
             """
             # Calling the appropriate function from the serializer to create an invoice
-            create_invoice_response = await InvoiceRequest.process_creation_request(
+            new_invoice = await InvoiceRequest.process_creation_request(
                 invoice_data=invoice_data,
                 invoice_service=invoice_service,
             )
-            # Return an InvoiceRequest object
-            return create_invoice_response
+
+            # Return HTTP object which includes HTTP headers and InvoiceRequest object serialized to json
+            return new_invoice
 
         @router.post(
             "/invoice/pay/{invoice_id}",
