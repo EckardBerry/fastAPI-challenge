@@ -2,12 +2,12 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Request, Response
-from slowapi import Limiter
+from fastapi import APIRouter, Path, Response
 
 from src.schemas.auth import require_authentication
 from src.schemas.card import PayCardBody
 from src.schemas.invoice_schema import InvoiceRequest, InvoiceResponse
+from src.schemas.rate_limit import require_rate_limit
 from src.services.invoice_service import InvoicingService
 
 logger = logging.getLogger(__name__)
@@ -19,18 +19,14 @@ class InvoiceRoutes:
     def __init__(
         self,
         invoice_service: InvoicingService,
-        limiter: Limiter,
     ) -> None:
         self.router = APIRouter(tags=["Invoices"])
         self._invoice_service = invoice_service
-        self._limiter = limiter
         self._register_routes()
 
     def _register_routes(self) -> None:
         invoice_service = self._invoice_service
-        limiter = self._limiter
         router = self.router
-
         @router.get(
             "/invoice/{invoice_id}",
             response_model=InvoiceResponse,
@@ -91,10 +87,9 @@ class InvoiceRoutes:
             "/invoice",
             response_model=InvoiceResponse,
             status_code=201,
-            dependencies=[require_authentication],
+            dependencies=[require_authentication, require_rate_limit],
         )
-        @limiter.limit("30/minute")
-        async def create_invoice(request: Request, invoice_data: InvoiceRequest):
+        async def create_invoice(invoice_data: InvoiceRequest):
             """
             Create an invoice.
 
@@ -137,7 +132,6 @@ class InvoiceRoutes:
 
 def build_invoice_router(
     invoice_service: InvoicingService,
-    limiter: Limiter,
 ) -> APIRouter:
     """Return the invoice router to be used in the main.py file."""
-    return InvoiceRoutes(invoice_service, limiter).router
+    return InvoiceRoutes(invoice_service).router

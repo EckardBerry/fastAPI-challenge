@@ -4,8 +4,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.config.settings import Settings
-from src.schemas.auth import require_authentication
 from src.exception_handlers import register_exception_handlers
+from src.schemas.auth import require_authentication
 from src.routers.invoice_routes import build_invoice_router
 from src.services.health_check_service import HealthCheckService
 from src.services.invoice_service import InvoicingService
@@ -31,4 +31,4 @@ async def health_check(response: Response):
 
 
 # All invoice routes/endpoints are grouped together in routers/invoice_routes.py file.
-app.include_router(build_invoice_router(invoice_service, limiter))
+app.include_router(build_invoice_router(invoice_service))
