@@ -4,6 +4,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.config.settings import Settings
+from src.schemas.auth import require_authentication
 from src.exception_handlers import register_exception_handlers
 from src.routers.invoice_routes import build_invoice_router
 from src.services.health_check_service import HealthCheckService
@@ -20,7 +21,10 @@ health_check_sevice = HealthCheckService(settings)
 invoice_service = InvoicingService(settings)
 
 
-@app.get("/health-check")
+@app.get(
+    "/health-check",
+    dependencies=[require_authentication],
+)
 async def health_check(response: Response):
     response.status_code, json_response = await health_check_sevice.health_check()
     return json_response

@@ -2,10 +2,10 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Path, Query, Request, Response
+from fastapi import APIRouter, Path, Request, Response
 from slowapi import Limiter
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
+from src.schemas.auth import require_authentication
 from src.schemas.card import PayCardBody
 from src.schemas.invoice_schema import InvoiceRequest, InvoiceResponse
 from src.services.invoice_service import InvoicingService
@@ -35,6 +35,7 @@ class InvoiceRoutes:
             "/invoice/{invoice_id}",
             response_model=InvoiceResponse,
             response_model_exclude_none=True,
+            dependencies=[require_authentication],
         )
         async def get_invoice(invoice_id: UUID = Path(...)):
             """Get an invoice by its ID."""
@@ -44,6 +45,7 @@ class InvoiceRoutes:
             "/invoices",
             response_model=list[InvoiceResponse],
             response_model_exclude_none=True,
+            dependencies=[require_authentication],
         )
         async def list_invoices(
             response: Response,
@@ -85,7 +87,12 @@ class InvoiceRoutes:
             # Return a list of InvoiceResponse serialized invoices.
             return invoices
 
-        @router.post("/invoice", response_model=InvoiceResponse, status_code=201)
+        @router.post(
+            "/invoice",
+            response_model=InvoiceResponse,
+            status_code=201,
+            dependencies=[require_authentication],
+        )
         @limiter.limit("30/minute")
         async def create_invoice(request: Request, invoice_data: InvoiceRequest):
             """
@@ -111,6 +118,7 @@ class InvoiceRoutes:
             "/invoice/pay/{invoice_id}",
             response_model=InvoiceResponse,
             status_code=201,
+            dependencies=[require_authentication],
         )
         async def pay_pending_invoice(
             invoice_id: Annotated[UUID, Path(description="Invoice UUID")],

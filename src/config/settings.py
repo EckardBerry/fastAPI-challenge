@@ -9,3 +9,4 @@ class Settings(BaseSettings):
     db_url: str
     db_user: str
     db_password: str
+    api_key: str

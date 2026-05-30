@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Optional, Self, Union, Annotated, Any
 from fastapi import APIRouter, Path, Query, Request, Response
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from uuid import UUID
-
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -228,7 +227,7 @@ class InvoiceResponse(BaseModel):
         ] = 10,
     ) -> tuple[list[Any], int]:
         """List all invoices."""
-        status_filter = invoice_status.value if invoice_status is not None else None
+        status_filter = invoice_status if invoice_status is not None else None
         offset = (int(page) - 1) * int(page_size)
 
         logger.debug(
